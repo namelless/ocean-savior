@@ -3,12 +3,14 @@ import sys
 import time
 import random
 import math
+from scripts.outline import perfect_outline
 from scripts.utils import load_dir, load_images, load_image, spritesheat,HealthBar, Animation
 from scripts.player import Player
 from scripts.weapons import Weapon
 from scripts.tilemap import Tilemap
 from scripts.garbage import garbage
 from scripts.pickups import collectable
+from scripts.spark import Particle
 class Main:
     def __init__(self):
         pygame.mixer.pre_init()
@@ -23,6 +25,7 @@ class Main:
 
             self.highest_level = int(f.read())
         scale = 1.6
+        self.particles = []
         self.level = 1
         self.assets = {
              'shotgun_fire' : Animation(spritesheat('assets/shoot.png',40,22,scale=scale),dur=6,loop=False),
@@ -36,7 +39,8 @@ class Main:
              'bag' : pygame.transform.scale_by(load_image('assets/trash_bag.png'),1.7),
              'bg' : load_image('assets/bg.png',(self.screen.get_width(),650)),
              'heal' : load_image('assets/healing.png',(32,32)),
-             'reload' : load_image('assets/ammo.png',(32,32))
+             'reload' : load_image('assets/ammo.png',(32,32)),
+             'can' : load_image('assets/can.png')
         }
         self.player = Player(self, self.screen,(200,0), y_difference=5,health=100)
         self.shotgun = Weapon(self, 'shotgun', 50, self.assets['shotgun_fire'].animation_lenght()/60, (100,100), bullet_count=5,offset=(25,35),range=300)
@@ -50,7 +54,7 @@ class Main:
         }
         self.sfx['shotgun'].set_volume(0.1)
         self.sfx['pistol'].set_volume(0.6)
-        self.unlocked_trash = ['bag']
+        self.unlocked_trash = ['bag','can']
         self.healthbar = HealthBar((20,20),(200,20),False)
         self.gun = 0
         self.weapons = [self.shotgun]
@@ -82,6 +86,7 @@ class Main:
                 f.write(str(self.level))
             self.highest_level = self.level
         self.level = 1
+        self.weapons = [self.shotgun]
         self.unlocked_weapons = [self.pistol]
         self.gun = 0
         
@@ -101,19 +106,21 @@ class Main:
                 weapon.dmg *= (effect[1]/100 )+ 1
         if effect[0] == 'range':
             for weapon in self.unlocked_weapons:
-                weapon.range *= (effect[1]/100 )+ 1
+                weapon.range *= 3*((effect[1])/100 )+ 1
+
         if effect[0] == 'ammo':
             for weapon in self.unlocked_weapons:
                 weapon.max_ammo *= ((effect[1]/100 )+ 1)
                 weapon.max_ammo = int(weapon.max_ammo)
                 weapon.ammo = weapon.max_ammo
         if effect[0] == 'speed':
-            self.player.speed *= (effect[1]/100 )+ 1
+            self.player.speed *= ((effect[1]*2.5)/100 )+ 1
+            self.player.speed = int(self.player.speed)
         
 
     def run(self):
         font = pygame.font.Font('assets/squarefont/Square.ttf',32)
-        sfont = pygame.font.Font('assets/squarefont/Square.ttf',22)
+        sfont = pygame.font.Font('assets/squarefont/Square.ttf',28)
         camera = [0,0]
         movement = [False for i in range(4)]        
         last_frame = time.time()
@@ -121,14 +128,14 @@ class Main:
         lag = 2
         clicking = False
         count = 0
-        drop_odds = 0.55
+        drop_odds = 0.35
         last_garbage = 0
         upgrading = False
         paused = True
         l = False
         c_del = 20
         
-        text_color = (120,30,30)
+        text_color = (150,30,30)
         while True:
             self.screen.fill((0,0,0))
             self.screen.blit(self.assets['bg'],(0,0))
@@ -164,7 +171,10 @@ class Main:
                         self.player.health -= t.health//(4-math.sqrt(self.level))
                         self.trash.remove(t)
                     if t.health <= 0:
-                        self.trash.remove(t)
+                        try:
+                            self.trash.remove(t)
+                        except Exception:
+                            pass
                         r = random.random()
                         if r < drop_odds:
                             skill = [random.choice(self.drop_loot), random.randint(10,50)]
@@ -174,6 +184,11 @@ class Main:
                 self.player.flip = self.unlocked_weapons[self.gun].flip
                 self.player.update(self.tilemap,[movement[1] - movement[0], 0])
                 self.unlocked_weapons[self.gun].update(None, mpos)
+
+            for particle in self.particles:
+                if particle.update():
+                    self.particles.remove(particle)
+                particle.render(self.screen)
             self.healthbar.render(self.screen, self.player.health/self.player.max_health)
             self.tilemap.render(self.screen)
             for t in self.trash:
@@ -197,11 +212,16 @@ class Main:
                         u.remove(choices[i][0])
                     l = False
                 for i in range(3):
+
                     text = sfont.render(f"{self.upgrade_dialouge[choices[i][0]]}{choices[i][1]}%", True, text_color)
+                    if choices[i][0] == 'range' or choices[i][0] == 'speed':
+                        text = sfont.render(f"{self.upgrade_dialouge[choices[i][0]]}{int(choices[i][1]*2.5)}%", True, text_color)
                     pos = (80+i*380,300)
                     rect= pygame.Rect(*pos,*text.get_size())
+                    perfect_outline(text,self.screen,pos,(255,255,255))
                     self.screen.blit(text,pos)
                     text = font.render(f"you have leveled up choose an upgrade", True, text_color)
+                    perfect_outline(text,self.screen,(300,160),(255,255,255))
                     self.screen.blit(text,(300,160))
                     if rect.collidepoint(mpos) and clicking:
                         upgrading = False
@@ -225,10 +245,13 @@ class Main:
             self.screen.blit(text,(430,20))    
             if paused:
                 text = font.render(f"presss W A D to move", True, text_color)
+                perfect_outline(text,self.screen,(430,200),(255,255,255),(255,255,255),(255,255,255))
                 self.screen.blit(text,(430,200))                    
-                text = font.render(f"left click to shoot", True, text_color)
-                self.screen.blit(text,(430,300))                    
+                text = font.render(f"left click to shoot and dont let the trash pollute the ocean", True, text_color)
+                perfect_outline(text,self.screen,(60,300),(255,255,255))
+                self.screen.blit(text,(60,300))                    
                 text = font.render(f"click anywhere to continue", True, text_color)
+                perfect_outline(text,self.screen,(400,380),(255,255,255))
                 self.screen.blit(text,(400,380))                                    
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -276,14 +299,19 @@ class Main:
 
     def lose(self):
         font = pygame.font.Font('assets/squarefont/Square.ttf',32)
-        text_color = (120,30,30)
+        bfont = pygame.font.Font('assets/squarefont/Square.ttf',33)
+        text_color = (200,30,30)
+        time.sleep(0.3)
         while True:
 
             text = font.render(f"You have lost left click to restart", True, text_color)
+            perfect_outline(text,self.screen,(350,180),(255,255,255))
             self.screen.blit(text,(350,180))            
             text = font.render(f"level reached : {self.level} ", True, text_color)
+            perfect_outline(text,self.screen,(350,280),(255,255,255))
             self.screen.blit(text,(350,280))            
             text = font.render(f"Highest level reached : {max(self.level,self.highest_level)} ", True, text_color)
+            perfect_outline(text,self.screen,(350,380),(255,255,255))
             self.screen.blit(text,(350,380))            
 
             for event in pygame.event.get():

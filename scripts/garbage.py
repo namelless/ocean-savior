@@ -1,5 +1,5 @@
 import pygame, random, time, math
-
+from scripts.spark import Particle
 class garbage:
     def __init__(self, game, img, screen, speed, health) -> None:
         self.game = game
@@ -18,6 +18,8 @@ class garbage:
             if trash.colliderect(bullet.rect()):
                 self.health -= bullet.dmg
                 bullets.remove(bullet)
+                for i in range(5):
+                    self.game.particles.append(Particle(math.radians(bullet.angle) + math.pi + (random.random()-0.5)/2, 2+ random.random()*2 ,bullet.pos))
 
         return bullets
 
