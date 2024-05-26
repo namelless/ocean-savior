@@ -2,7 +2,7 @@ import pygame
 
 
 class Player:
-    def __init__(self, game, screen,  pos, y_difference=0):
+    def __init__(self, game, screen,  pos, health=100,y_difference=5):
         self.surf = screen
         self.game = game
         self.pos = list(pos)
@@ -12,6 +12,7 @@ class Player:
         self.action =  ''
         # Movement attributes
         self.flip = False
+        self.max_health = self.health = health
         self.speed = 3
         self.velocity = [0,0]
         self.collisions = {'up': False, 'down': False, 'right': False, 'left': False}
@@ -74,7 +75,7 @@ class Player:
                     self.collisions['up'] = True
                 self.pos[1] = entity_rect.y
 
-
+        self.velocity[0] = max(0, self.velocity[0] - 0.1)
         self.velocity[1] = min(5, self.velocity[1] + 0.2)
         if self.collisions['down'] or self.collisions['up']:
             self.velocity[1] = 0

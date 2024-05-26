@@ -37,7 +37,7 @@ class Bullet:
     def render(self, screen, scroll):
         screen.blit(pygame.transform.rotate(self.sprite,self.angle),[self.pos[i] -scroll[i] for i in range(2)])
 
-class weapon:
+class Weapon:
     def __init__(self, game, weapon, damage, delay, pos, range=500 ,bullet_count=1, rotation=0,offset=(0,0),ammo=30) -> None:
         self.game = game
         self.dmg = damage
