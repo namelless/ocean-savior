@@ -18,9 +18,6 @@ class Bullet:
     def update(self, tilemap):
         bullet = self.rect()
 
-        for rect in list(tilemap.physics_rects_around((self.pos))):
-            if bullet.colliderect(rect):            
-                return True
 
         self.distance[0] += self.speed[0]
         self.distance[1] += self.speed[1]
@@ -77,19 +74,27 @@ class Weapon:
         self.pos[1] = self.game.player.pos[1] + self.offset[1]
         angle = math.degrees(math.atan2((mpos[1] - self.pos[1]  ),self.pos[0]  - mpos[0])+math.pi)
         self.rotation = angle - self.initial_rotation
-        if action:
-            
+        if action:            
             if time.time() - self.last_shot > self.delay:
+
                 if self.ammo > 0:
                     self.set_state(action)
                 if self.bulletc > 1:
+                    if self.ammo > 0:
+                        self.game.player.velocity[0] -= math.cos(math.radians(angle)) * self.bulletc
+                        self.game.player.velocity[1] += math.sin(math.radians(angle)) * self.bulletc
                     for i in range(5):
                         if self.ammo > 0:
-                            self.bullets.append(Bullet(self.rotation + (i-self.bulletc//2)*random.randint(300,500)/100, self.pos, self.game.assets[f'{self.weapon}_bullet'], dmg=self.dmg, dis=self.range))
+
+                            self.game.sfx[self.weapon].play()
+                            self.bullets.append(Bullet(self.rotation + (i-self.bulletc//2)*random.randint(300,500)/100, self.rect().center, self.game.assets[f'{self.weapon}_bullet'], dmg=self.dmg, dis=self.range))
                             self.ammo -= 1
                             self.last_shot = time.time()
                 else:
                     if self.ammo > 0:
+                        self.game.player.velocity[0] -= math.cos(math.radians(angle)) * self.bulletc
+                        self.game.player.velocity[1] += math.sin(math.radians(angle)) * self.bulletc
+                        self.game.sfx[self.weapon].play()
                         self.bullets.append(Bullet(self.rotation , self.rect().center, self.game.assets[f'{self.weapon}_bullet'], dmg=self.dmg, dis=self.range))
                         self.ammo -= 1
                         self.last_shot = time.time()

@@ -35,13 +35,21 @@ class Main:
              'player' : load_image('assets/player.png',(35,45)),
              'bag' : pygame.transform.scale_by(load_image('assets/trash_bag.png'),1.7),
              'bg' : load_image('assets/bg.png',(self.screen.get_width(),650)),
-             'heal' : load_image('assets/healing.png',(32,32))
+             'heal' : load_image('assets/healing.png',(32,32)),
+             'reload' : load_image('assets/ammo.png',(32,32))
         }
         self.player = Player(self, self.screen,(200,0), y_difference=5,health=100)
         self.shotgun = Weapon(self, 'shotgun', 50, self.assets['shotgun_fire'].animation_lenght()/60, (100,100), bullet_count=5,offset=(25,35),range=300)
         self.pistol = Weapon(self, 'pistol', 50, self.assets['pistol_fire'].animation_lenght()/60, (100,100),offset=(25,35), range=700)
         self.tilemap = Tilemap(self, 40)
         self.trash = []
+        self.sfx = {
+            'pick' : pygame.mixer.Sound('assets/pickup.wav'),
+            'pistol' : pygame.mixer.Sound('assets/pistol.mp3'),
+            'shotgun' : pygame.mixer.Sound('assets/shotgun.mp3'),
+        }
+        self.sfx['shotgun'].set_volume(0.1)
+        self.sfx['pistol'].set_volume(0.6)
         self.unlocked_trash = ['bag']
         self.healthbar = HealthBar((20,20),(200,20),False)
         self.gun = 0
@@ -57,8 +65,9 @@ class Main:
         self.unlocked_weapons = [self.pistol]
         self.tilemap.load('assets/lvl.json')
         self.collectables = []
-        self.drop_loot = ['heal']
+        self.drop_loot = ['heal','reload']
         self.y = 470
+        self.m_time = time.time()
         self.run()
 
     def reset(self):
@@ -80,7 +89,10 @@ class Main:
 
     def effect(self, effect):
         if effect[0] == 'heal':
-            self.player.health = min(self.player.max_health, self.player.health + 30)
+            self.player.health = self.player.max_health
+        if effect[0] == 'reload':
+            for i,w in enumerate(self.unlocked_weapons):
+                self.unlocked_weapons[i].ammo =  w.max_ammo
         if effect[0] == 'health':
             self.player.max_health *= (effect[1]/100 )+ 1
             self.player.health = self.player.max_health
@@ -109,11 +121,13 @@ class Main:
         lag = 2
         clicking = False
         count = 0
-        drop_odds = 0.6
+        drop_odds = 0.55
         last_garbage = 0
         upgrading = False
+        paused = True
         l = False
         c_del = 20
+        
         text_color = (120,30,30)
         while True:
             self.screen.fill((0,0,0))
@@ -130,14 +144,14 @@ class Main:
             scroll = (int(camera[0]), int(camera[1]))
             scroll = [0,0]
             mpos = pygame.mouse.get_pos()
-            if not upgrading:
-                if self.level % 3 == 0 and self.weapons:
+            if not upgrading and not paused:
+                if self.level % 2 == 0 and self.weapons:
                     self.unlocked_weapons.append(self.weapons.pop())
                 if time.time() - last_garbage > delay and count < self.level * wave_l:
                     count += 1
                     last_garbage = time.time()
-                    mg = pygame.transform.scale_by(self.assets[random.choice(self.unlocked_trash)],1/self.level**(1/3))
-                    self.trash.append(garbage(self,mg, self.screen, 2, (sum(mg.get_size())*(1+self.level**(1/3))/2)))
+                    mg = pygame.transform.scale_by(self.assets[random.choice(self.unlocked_trash)],1/math.sqrt(self.level))
+                    self.trash.append(garbage(self,mg, self.screen, 2, sum(mg.get_size())))
                 if count >= self.level * wave_l and not self.trash:
                     self.level += 1
                     count = 0
@@ -145,9 +159,9 @@ class Main:
                     l = True
                 for t in self.trash:
                     self.unlocked_weapons[self.gun].bullets = t.update(self.unlocked_weapons[self.gun].bullets)
-                    t.render()
+                    
                     if t.pos[1] > self.y:
-                        self.player.health -= t.health//3
+                        self.player.health -= t.health//(4-math.sqrt(self.level))
                         self.trash.remove(t)
                     if t.health <= 0:
                         self.trash.remove(t)
@@ -162,14 +176,15 @@ class Main:
                 self.unlocked_weapons[self.gun].update(None, mpos)
             self.healthbar.render(self.screen, self.player.health/self.player.max_health)
             self.tilemap.render(self.screen)
-
+            for t in self.trash:
+                t.render(scroll)
             self.player.render(self.screen, scroll)
             
             self.unlocked_weapons[self.gun].render(self.screen, scroll)
             offset = 0
 
             for c in self.collectables:
-                if c.update(self.player.rect(),self.tilemap):
+                if c.update(self.player.rect(),self.tilemap, self.y):
                     self.collectables.remove(c)
                 c.render(self.screen, scroll)
 
@@ -208,14 +223,23 @@ class Main:
             self.screen.blit(text,(25,50))            
             text = font.render(f"Level : {self.level}", True, text_color)
             self.screen.blit(text,(430,20))    
+            if paused:
+                text = font.render(f"presss W A D to move", True, text_color)
+                self.screen.blit(text,(430,200))                    
+                text = font.render(f"left click to shoot", True, text_color)
+                self.screen.blit(text,(430,300))                    
+                text = font.render(f"click anywhere to continue", True, text_color)
+                self.screen.blit(text,(400,380))                                    
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
                 if event.type == pygame.MOUSEBUTTONDOWN:
+                    if paused and self.level == 1:
+                        paused = False
                     if event.button == 1:
                         clicking = True  
-                        if not upgrading:
+                        if not upgrading and not paused:
                             if not weapon_switch:
                                 self.unlocked_weapons[self.gun].update('fire',mpos)
                 if event.type == pygame.MOUSEBUTTONUP:
@@ -223,7 +247,7 @@ class Main:
                         clicking = False     
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
-                        if not upgrading:
+                        if not upgrading and not paused:
                             self.unlocked_weapons[self.gun].set_state('idle')
                             self.gun = (self.gun + 1) % len(self.unlocked_weapons)
 

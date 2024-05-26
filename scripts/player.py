@@ -74,8 +74,10 @@ class Player:
                     entity_rect.top = rect.bottom
                     self.collisions['up'] = True
                 self.pos[1] = entity_rect.y
-
-        self.velocity[0] = max(0, self.velocity[0] - 0.1)
+        if self.velocity[0] > 0:
+            self.velocity[0] = max(0, self.velocity[0] - 0.1)
+        if self.velocity[0] < 0:
+            self.velocity[0] = min(0, self.velocity[0] + 0.1)            
         self.velocity[1] = min(5, self.velocity[1] + 0.2)
         if self.collisions['down'] or self.collisions['up']:
             self.velocity[1] = 0
